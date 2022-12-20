@@ -113,8 +113,8 @@
             --billing-account "$BILLING_ACCOUNT_ID"
 
             gcloud services enable `
-            cloudbuild.googleapis.com `
-            artifactregistry.googleapis.com `
+            cloudresourcemanager.googleapis.com `
+            compute.googleapis.com `
             iam.googleapis.com `
             --project "${PROJECT_ID_DEV}"
 
@@ -140,22 +140,33 @@
             --role roles/iam.securityAdmin `
             --project "${PROJECT_ID_DEV}"
 
-            $SA_COMPUTE_DEV_EMAIL = "$(gcloud projects describe "${PROJECT_ID_DEV}" `
-            --format 'value(projectNumber)')-compute@developer.gserviceaccount.com .gserviceaccount.com"
+            $SA_CLOUD_RUN_DEV_EMAIL = "service-$(gcloud projects describe "${PROJECT_ID_DEV}" `
+            --format 'value(projectNumber)')@serverless-robot-prod.iam.gserviceaccount.com"
 
             gcloud artifacts repositories add-iam-policy-binding "${ARTIFACT_REPO_NAME}" `
             --location "${DEFAULT_REGION}" `
-            --member "serviceAccount:${SA_COMPUTE_DEV_EMAIL}" `
+            --member "serviceAccount:${SA_CLOUD_RUN_DEV_EMAIL}" `
             --role roles/artifactregistry.reader `
             --project "${PROJECT_ID_MAIN}"
 
             gcloud beta builds triggers create github `
-            --repo-name = "${GITHUB_REPO_NAME}" `
-            --repo-owner = "${GITHUB_REPO_OWNER}" `
-            --branch-pattern = "^main$" `
-            --build-config = "build/cloudbuild-dev.yaml" `
-            --name = "deploy-dev" `
-            --service-account = "projects/${PROJECT_ID_MAIN}/serviceAccounts/${SA_BUILD_DEV_EMAIL}"
+            --repo-name "${GITHUB_REPO_NAME}" `
+            --repo-owner "${GITHUB_REPO_OWNER}" `
+            --branch-pattern "^main$" `
+            --build-config "build/cloudbuild-dev.yaml" `
+            --name "deploy-dev" `
+            --service-account "projects/${PROJECT_ID_MAIN}/serviceAccounts/${SA_BUILD_DEV_EMAIL}" `
+            --project "${PROJECT_ID_MAIN}"
+
+            gcloud beta builds triggers create github `
+            --repo-name "${GITHUB_REPO_NAME}" `
+            --repo-owner "${GITHUB_REPO_OWNER}" `
+            --branch-pattern "^main$" `
+            --build-config "build/cloudbuild-feature.yaml" `
+            --name "build-feature" `
+            --service-account "projects/${PROJECT_ID_MAIN}/serviceAccounts/${SA_BUILD_DEV_EMAIL}" `
+            --project "${PROJECT_ID_MAIN}" `
+            --substitutions _HOST="${HOST_DEV}"`,_DOCKER_REPO="${DEFAULT_REGION}-docker.pkg.dev/${PROJECT_ID_MAIN}/${ARTIFACT_REPO_NAME}"`,_PROJECT="${PROJECT_ID_DEV}"`,_TERRAFORM_BUCKET="${TERRAFORM_BUCKET_NAME}"
 
             # TODO add feature branch script
         }
