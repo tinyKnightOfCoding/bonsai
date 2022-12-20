@@ -102,6 +102,9 @@
         }
         if ($phase -contains "setupDev" -and -not($skip -contains "setupDev"))
         {
+
+            $HOST_DEV = Read-Host "Enter domain for dev"
+
             $host.ui.RawUI.ForegroundColor = 'DarkGreen'
             Write-Output "[setupDev] Creating dev project"
             $host.ui.RawUI.ForegroundColor = $defaultForeground
@@ -156,22 +159,85 @@
             --build-config "build/cloudbuild-dev.yaml" `
             --name "deploy-dev" `
             --service-account "projects/${PROJECT_ID_MAIN}/serviceAccounts/${SA_BUILD_DEV_EMAIL}" `
+            --project "${PROJECT_ID_MAIN}" `
+            --substitutions _HOST="${HOST_DEV}"`,_DOCKER_REPO="${DEFAULT_REGION}-docker.pkg.dev/${PROJECT_ID_MAIN}/${ARTIFACT_REPO_NAME}"`,_PROJECT="${PROJECT_ID_DEV}"`,_TERRAFORM_BUCKET="${TERRAFORM_BUCKET_NAME}"
+
+#            gcloud beta builds triggers create github `
+#            --repo-name "${GITHUB_REPO_NAME}" `
+#            --repo-owner "${GITHUB_REPO_OWNER}" `
+#            --branch-pattern "^main$" `
+#            --build-config "build/cloudbuild-feature.yaml" `
+#            --name "build-feature" `
+#            --service-account "projects/${PROJECT_ID_MAIN}/serviceAccounts/${SA_BUILD_DEV_EMAIL}" `
+#            --project "${PROJECT_ID_MAIN}" `
+#            --substitutions _HOST="${HOST_DEV}"`,_DOCKER_REPO="${DEFAULT_REGION}-docker.pkg.dev/${PROJECT_ID_MAIN}/${ARTIFACT_REPO_NAME}"`,_PROJECT="${PROJECT_ID_DEV}"`,_TERRAFORM_BUCKET="${TERRAFORM_BUCKET_NAME}"
+
+            # TODO add feature branch script
+        }
+
+        if ($phase -contains "setupTest" -and -not($skip -contains "setupTest"))
+        {
+
+            $HOST_TEST = Read-Host "Enter domain for test"
+
+            $host.ui.RawUI.ForegroundColor = 'DarkGreen'
+            Write-Output "[setupTest] Creating test project"
+            $host.ui.RawUI.ForegroundColor = $defaultForeground
+
+            gcloud projects create "${PROJECT_ID_TEST}" `
+            --name "${PROJECT_NAME_TEST}"
+
+            gcloud beta billing projects link "${PROJECT_ID_TEST}" `
+            --billing-account "$BILLING_ACCOUNT_ID"
+
+            gcloud services enable `
+            cloudresourcemanager.googleapis.com `
+            compute.googleapis.com `
+            iam.googleapis.com `
+            --project "${PROJECT_ID_TEST}"
+
+            Start-Sleep -Seconds 30
+
+            gcloud iam service-accounts create "${SA_BUILD_TEST}" `
+            --description "Build SA for test" `
+            --display-name "Build SA TEST" `
+            --project "${PROJECT_ID_MAIN}"
+
+            gcloud projects add-iam-policy-binding "${PROJECT_ID_MAIN}" `
+            --member "serviceAccount:${SA_BUILD_TEST_EMAIL}" `
+            --role roles/cloudbuild.builds.builder `
+            --project "${PROJECT_ID_MAIN}"
+
+            gcloud projects add-iam-policy-binding "${PROJECT_ID_TEST}" `
+            --member "serviceAccount:${SA_BUILD_TEST_EMAIL}" `
+            --role roles/editor `
+            --project "${PROJECT_ID_TEST}"
+
+            gcloud projects add-iam-policy-binding "${PROJECT_ID_TEST}" `
+            --member "serviceAccount:${SA_BUILD_TEST_EMAIL}" `
+            --role roles/iam.securityAdmin `
+            --project "${PROJECT_ID_TEST}"
+
+            $SA_CLOUD_RUN_TEST_EMAIL = "service-$(gcloud projects describe "${PROJECT_ID_TEST}" `
+            --format 'value(projectNumber)')@serverless-robot-prod.iam.gserviceaccount.com"
+
+            gcloud artifacts repositories add-iam-policy-binding "${ARTIFACT_REPO_NAME}" `
+            --location "${DEFAULT_REGION}" `
+            --member "serviceAccount:${SA_CLOUD_RUN_TEST_EMAIL}" `
+            --role roles/artifactregistry.reader `
             --project "${PROJECT_ID_MAIN}"
 
             gcloud beta builds triggers create github `
             --repo-name "${GITHUB_REPO_NAME}" `
             --repo-owner "${GITHUB_REPO_OWNER}" `
-            --branch-pattern "^main$" `
-            --build-config "build/cloudbuild-feature.yaml" `
-            --name "build-feature" `
-            --service-account "projects/${PROJECT_ID_MAIN}/serviceAccounts/${SA_BUILD_DEV_EMAIL}" `
+            --tag-pattern "^\d+\.\d+\.\d+$" `
+            --build-config "build/cloudbuild-test.yaml" `
+            --name "deploy-test" `
+            --service-account "projects/${PROJECT_ID_MAIN}/serviceAccounts/${SA_BUILD_TEST_EMAIL}" `
             --project "${PROJECT_ID_MAIN}" `
-            --substitutions _HOST="${HOST_DEV}"`,_DOCKER_REPO="${DEFAULT_REGION}-docker.pkg.dev/${PROJECT_ID_MAIN}/${ARTIFACT_REPO_NAME}"`,_PROJECT="${PROJECT_ID_DEV}"`,_TERRAFORM_BUCKET="${TERRAFORM_BUCKET_NAME}"
+            --substitutions _HOST="${HOST_TEST}"`,_DOCKER_REPO="${DEFAULT_REGION}-docker.pkg.dev/${PROJECT_ID_MAIN}/${ARTIFACT_REPO_NAME}"`,_PROJECT="${PROJECT_ID_DEV}"`,_TERRAFORM_BUCKET="${TERRAFORM_BUCKET_NAME}"
 
-            # TODO add feature branch script
         }
-
-        # TODO add test
 
         # TODO add prod
     }
